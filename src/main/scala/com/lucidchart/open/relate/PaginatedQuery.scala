@@ -3,18 +3,17 @@ package com.lucidchart.open.relate
 import java.sql.Connection
 import scala.collection.mutable.ArrayBuffer
 
-/**
- * The PaginatedQuery companion object supplies apply methods that will create new
- * PaginatedQuery's and execute them to get Streams of results.
- *
- * PaginatedQuery provides two pagination methods: 
- *  - Using LIMIT and OFFSET
- *  - Allowing the user to specify the next query based on the last record in the previous page
- *
- * The latter method is provided because the LIMIT/OFFSET method has poor performance when result
- * sets get large.
- */
-object PaginatedQuery {
+object PaginatedQuery extends PaginatedQueryBuilder {
+
+  @deprecated("Use a DBMS-specific method, such com.lucidchart.open.relate.mysql.PaginatedQuery.apply", "1.7.0")
+  def apply[A](parser: SqlResult => A, limit: Int, startingOffset: Long)(query: ParameterizedSql)(implicit connection: Connection): Stream[A] = {
+    mysql.PaginatedQuery.apply(parser, limit, startingOffset)(query)
+  }
+
+}
+
+class PaginatedQueryBuilder {
+
   /**
    * Create a new PaginatedQuery with user supplied queries, execute it, and return a Stream over
    * the results. It should be noted that the PaginatedQuery makes absolutely no changes to the
@@ -32,28 +31,12 @@ object PaginatedQuery {
     new PaginatedQuery(parser, connection).withQuery(getNextStmt)
   }
 
-  /**
-   * Create a new PaginatedQuery that uses LIMIT and OFFSET, execute it, and return a Stream over
-   * the results.
-   * @param parser the RowParser that will parse records from the database
-   * @param limit the number of records each page will contain
-   * @param startingOffset the offset to start with
-   * @param query the Sql object to use for the query. This object should already have all
-   * parameters substituted into it
-   * @param connection the connection to use to make the query
-   * @return a Stream over all the records returned by the query, getting a new page of results
-   * when the current one is exhausted
-   */
-  def apply[A](parser: SqlResult => A, limit: Int, startingOffset: Long)(query: ParameterizedSql)(implicit connection: Connection): Stream[A] = {
-    new PaginatedQuery(parser, connection).withLimitAndOffset(limit, startingOffset, query)
-  }
 }
 
 /**
  * A query object that will execute a query in a paginated format and return the results in a Stream
  */
 private[relate] class PaginatedQuery[A](parser: SqlResult => A, connection: Connection) {
-  self =>
 
   /**
    * Create a lazily evaluated stream of results
@@ -62,7 +45,7 @@ private[relate] class PaginatedQuery[A](parser: SqlResult => A, connection: Conn
    * and return a new statement to get the next page of results
    * @return a stream of results
    */
-  private def withQuery(getNextStmt: Option[A] => Sql): Stream[A] = {
+  private[relate] def withQuery(getNextStmt: Option[A] => Sql): Stream[A] = {
     /**
      * Get the next page of results
      * @param lastRecord the last record of the previous page
@@ -92,45 +75,4 @@ private[relate] class PaginatedQuery[A](parser: SqlResult => A, connection: Conn
     records(None)
   }
 
-  /**
-   * Paginate results of a query by using LIMIT and OFFSET.
-   * @param limit the number of records for a page
-   * @param startingOffset the offset to start querying at
-   * @param query the Sql object to use as the query (should have all parameters substituted in already)
-   * @return whatever the callback returns
-   */
-  private def withLimitAndOffset(limit: Int, startingOffset: Long, query: ParameterizedSql): Stream[A] = {
-    val queryParams = query.queryParams
-    val queryString = query.queryParams.query
-    /**
-     * Get the next page of results
-     * @param offset how much to offset into the results
-     * @return a stream of the records in the page
-     */
-    def page(offset: Long): Stream[A] = {
-      val newParams = queryParams.copy(query = queryString + " LIMIT " + limit + " OFFSET " + offset)
-      new ParameterizedSql with NormalStatementPreparer {
-        def connection = self.connection
-        val query = queryString
-        def queryParams = newParams
-      }.execute(_.asIterable(parser)).toStream
-    }
-
-    /**
-     * Create a lazily evaluated stream of results 
-     * @param offset the offset into the database results
-     * @return a stream of results
-     */
-    def records(offset: Long): Stream[A] = {
-      val currentPage = page(offset)
-      if (!currentPage.isEmpty) {
-        currentPage #::: records(offset + limit)
-      }
-      else {
-        Stream.Empty
-      }
-    }
-
-    records(startingOffset)
-  }
 }

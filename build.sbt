@@ -10,8 +10,7 @@ crossScalaVersions := Seq("2.10.4", "2.11.4")
 
 scalacOptions ++= Seq(
   "-deprecation",
-  "-feature",
-  "-language:higherKinds"
+  "-feature"
 )
 
 libraryDependencies ++= Seq(

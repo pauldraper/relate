@@ -3,6 +3,7 @@ package com.lucidchart.open.relate
 import java.sql.{Connection, PreparedStatement, ResultSet}
 import scala.collection.generic.CanBuildFrom
 import scala.collection.mutable
+import scala.language.higherKinds
 
 /** A query object that can be expanded */
 private[relate] case class ExpandableQuery(

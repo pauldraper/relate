@@ -19,6 +19,12 @@ libraryDependencies ++= Seq(
   "mysql" % "mysql-connector-java" % "5.1.23" % "it"
 )
 
+pgpPassphrase := Some(Array())
+
+pgpPublicRing := file(System.getProperty("user.home")) / ".pgp" / "pubring"
+
+pgpSecretRing := file(System.getProperty("user.home")) / ".pgp" / "secring"
+
 pomExtra := (
   <url>https://github.com/lucidsoftware/relate</url>
   <licenses>
@@ -48,10 +54,6 @@ pomExtra := (
 )
 
 pomIncludeRepository := { _ => false }
-
-useGpg := true
-
-pgpReadOnly := false
 
 publishMavenStyle := true
 
